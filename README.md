@@ -4,7 +4,7 @@ A [Home Assistant](https://www.home-assistant.io/) custom integration that bring
 
 ## The Idea
 
-OpenAI's **Codex CLI** is a developer tool that lets you use powerful reasoning models such as `gpt-5.1-codex` and `gpt-5.3-codex` directly from the terminal.
+OpenAI's **Codex** tooling lets you use current coding models such as `gpt-5.5`, `gpt-5.4`, and `gpt-5.4-mini` directly from the terminal and editor integrations.
 Access to these models is included in a ChatGPT Plus or Pro subscription, so there is no separate OpenAI API key and no per-token billing on top of that subscription.
 
 This integration reuses the same authenticated Codex backend flow and exposes it as a native Home Assistant conversation agent.
@@ -13,7 +13,7 @@ This integration reuses the same authenticated Codex backend flow and exposes it
 
 - No API key required, authentication happens with your existing ChatGPT account through OAuth2 device flow.
 - Streaming responses, so text appears progressively in the Home Assistant conversation UI.
-- Support for the `gpt-5.*-codex` model family.
+- Support for the currently recommended Codex models.
 - Multi-turn conversations with full chat history.
 - Home Assistant Assist integration.
 - Automatic token refresh.
@@ -60,16 +60,16 @@ After setup, you can change options from **Settings -> Devices & Services -> Ope
 
 | Option | Description | Default |
 | --- | --- | --- |
-| Model | Codex model used for the conversation agent | `gpt-5.1-codex` |
+| Model | Codex model used for the conversation agent | `gpt-5.5` |
 
 ### Available Models
 
 | Model | Notes |
 | --- | --- |
-| `gpt-5.1-codex` | Balanced speed and reasoning |
-| `gpt-5.2-codex` | More capable reasoning |
-| `gpt-5.3-codex` | Most capable |
-| `gpt-5.1-codex-mini` | Faster and lighter |
+| `gpt-5.5` | Recommended default for most coding and reasoning tasks |
+| `gpt-5.4` | Strong coding and tool-use model with lower cost than `gpt-5.5` |
+| `gpt-5.4-mini` | Faster and lighter option for responsive tasks |
+| `gpt-5.3-codex-spark` | Research preview model for near-instant coding iteration; ChatGPT Pro only |
 
 ## How It Works
 
