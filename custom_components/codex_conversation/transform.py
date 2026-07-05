@@ -119,7 +119,9 @@ def build_input_items(chat_log: ChatLog) -> list[dict[str, Any]]:
                         }
                     )
 
-            items.extend(_serialize_native_items(content.native, content.thinking_content))
+            items.extend(
+                _serialize_native_items(content.native, content.thinking_content)
+            )
             continue
         if isinstance(content, ToolResultContent):
             items.append(
