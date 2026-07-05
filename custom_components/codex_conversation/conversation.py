@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 import json
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation import (
@@ -40,6 +40,7 @@ from .codex_api import (
     CodexServerOverloaded,
     FunctionCallAdded,
     FunctionCallArgumentsDone,
+    OutputItemDone,
     OutputTextDelta,
     ReasoningSummaryDelta,
 )
@@ -90,7 +91,9 @@ async def async_setup_entry(
 # ── Entity ─────────────────────────────────────────────────────────────────────
 
 
-class CodexConversationEntity(ConversationEntity):
+class CodexConversationEntity(
+    ConversationEntity, conversation.AbstractConversationAgent
+):
     """Conversation agent backed by OpenAI Codex (ChatGPT subscription)."""
 
     _attr_has_entity_name = True
@@ -124,7 +127,7 @@ class CodexConversationEntity(ConversationEntity):
             )
 
     @property
-    def _options(self) -> dict:
+    def _options(self) -> Any:
         """Return active options for this entity."""
         return self._subentry.data
 
@@ -304,5 +307,17 @@ async def _events_to_deltas(
                 ]
             }
 
+        elif isinstance(event, OutputItemDone):
+            item_type = event.item.get("type")
+            if item_type == "reasoning":
+                if not started:
+                    yield {"role": "assistant"}
+                    started = True
+                yield {"native": event.item}
+
         elif isinstance(event, ReasoningSummaryDelta):
-            _LOGGER.debug("codex reasoning: %.80s", event.delta)
+            if event.delta:
+                if not started:
+                    yield {"role": "assistant"}
+                    started = True
+                yield {"thinking_content": event.delta}

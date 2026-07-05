@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
+from homeassistant.config_entries import ConfigSubentry
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -14,6 +17,16 @@ from custom_components.codex_conversation.const import (
     RECOMMENDED_CONVERSATION_OPTIONS,
 )
 from custom_components.codex_conversation.conversation import CodexConversationEntity
+
+turbojpeg_module = ModuleType("turbojpeg")
+
+
+class _TurboJPEG:
+    """Minimal TurboJPEG stub for Home Assistant test imports."""
+
+
+setattr(turbojpeg_module, "TurboJPEG", _TurboJPEG)
+sys.modules.setdefault("turbojpeg", turbojpeg_module)
 
 ENTRY_ID = "test_entry_id"
 
@@ -56,7 +69,10 @@ def mock_entity(hass, mock_config_entry, mock_oauth_session) -> CodexConversatio
         subentry_type="conversation",
     )
     entity = CodexConversationEntity(
-        hass, mock_config_entry, mock_oauth_session, conversation_subentry
+        hass,
+        mock_config_entry,
+        mock_oauth_session,
+        cast(ConfigSubentry, conversation_subentry),
     )
     entity.entity_id = f"conversation.{DOMAIN}"
     entity.hass = hass

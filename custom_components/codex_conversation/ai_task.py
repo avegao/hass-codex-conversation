@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from json import JSONDecodeError
 import logging
+from typing import Any
 
 from homeassistant.components import ai_task, conversation
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
@@ -68,10 +69,13 @@ class CodexAITaskEntity(ai_task.AITaskEntity):
         self._oauth_session = oauth_session
         self._attr_unique_id = subentry.subentry_id
         self._attr_name = subentry.title
-        self._attr_supported_features = ai_task.AITaskEntityFeature.GENERATE_DATA
+        self._attr_supported_features = (
+            ai_task.AITaskEntityFeature.GENERATE_DATA
+            | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
+        )
 
     @property
-    def _options(self) -> dict:
+    def _options(self) -> Any:
         return self._subentry.data
 
     @property

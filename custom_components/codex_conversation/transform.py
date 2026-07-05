@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from copy import deepcopy
 from datetime import date, datetime
 import json
 from mimetypes import guess_file_type
@@ -48,6 +49,39 @@ def extract_instructions(chat_log: ChatLog) -> str:
     return ""
 
 
+def _format_reasoning_summary(thinking_content: str | None) -> list[dict[str, str]]:
+    """Convert HA thinking content into a Responses API reasoning summary."""
+    if not thinking_content:
+        return []
+
+    return [{"type": "summary_text", "text": thinking_content}]
+
+
+def _serialize_native_items(
+    native: Any,
+    thinking_content: str | None,
+) -> list[dict[str, Any]]:
+    """Convert stored assistant native payloads back into replayable input items."""
+    if native is None:
+        return []
+
+    raw_items = native if isinstance(native, list) else [native]
+    serialized_items: list[dict[str, Any]] = []
+
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            continue
+
+        item = deepcopy(raw_item)
+        if item.get("type") == "reasoning" and thinking_content:
+            item["summary"] = item.get("summary") or _format_reasoning_summary(
+                thinking_content
+            )
+        serialized_items.append(item)
+
+    return serialized_items
+
+
 def build_input_items(chat_log: ChatLog) -> list[dict[str, Any]]:
     """Build input items in Responses API format from a chat log."""
     items: list[dict[str, Any]] = []
@@ -65,6 +99,15 @@ def build_input_items(chat_log: ChatLog) -> list[dict[str, Any]]:
             )
             continue
         if isinstance(content, AssistantContent):
+            if content.content:
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": content.content}],
+                    }
+                )
+
             if content.tool_calls:
                 for tool_call in content.tool_calls:
                     items.append(
@@ -75,14 +118,8 @@ def build_input_items(chat_log: ChatLog) -> list[dict[str, Any]]:
                             "call_id": tool_call.id,
                         }
                     )
-            elif content.content:
-                items.append(
-                    {
-                        "type": "message",
-                        "role": "assistant",
-                        "content": [{"type": "output_text", "text": content.content}],
-                    }
-                )
+
+            items.extend(_serialize_native_items(content.native, content.thinking_content))
             continue
         if isinstance(content, ToolResultContent):
             items.append(

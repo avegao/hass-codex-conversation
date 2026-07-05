@@ -2,8 +2,7 @@
 
 # script/type-check: Run type checking tools
 #
-# Runs Pyright type checker to validate type annotations and catch type-related
-# issues. Uses 'basic' type checking mode.
+# Runs ty to validate type annotations and catch type-related issues.
 #
 # Usage:
 #   ./script/type-check
@@ -34,6 +33,6 @@ fi
 
 log_header "Running type checking tools"
 
-pyright
+ty check
 
 log_success "Type checking completed"

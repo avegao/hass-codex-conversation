@@ -5,35 +5,44 @@ from __future__ import annotations
 from datetime import date, datetime
 import json
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.components.conversation import (
     AssistantContent,
     Attachment,
+    ChatLog,
     ConverseError,
     SystemContent,
     ToolResultContent,
     UserContent,
 )
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.helpers import llm
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.codex_conversation.codex_api import (
     CodexApiError,
+    CodexClient,
     CodexContextWindowExceeded,
     CodexQuotaExceeded,
     CodexRateLimited,
     CodexServerOverloaded,
     FunctionCallAdded,
     FunctionCallArgumentsDone,
+    OutputItemDone,
     OutputTextDelta,
+    ReasoningSummaryDelta,
 )
 from custom_components.codex_conversation.const import (
     CONF_MODEL,
     DOMAIN,
 )
-from custom_components.codex_conversation.conversation import async_run_chat_log
+from custom_components.codex_conversation.conversation import (
+    _events_to_deltas,
+    async_run_chat_log,
+)
 from custom_components.codex_conversation.transform import (
     build_input_items,
     extract_instructions,
@@ -192,7 +201,7 @@ def test_build_input_items_tool_result_with_date_value():
                 agent_id="conversation.codex",
                 tool_call_id="c1",
                 tool_name="get_date",
-                tool_result={"today": date(2026, 3, 3)},
+                tool_result=cast(Any, {"today": date(2026, 3, 3)}),
             ),
         ]
     )
@@ -336,7 +345,12 @@ async def test_handle_message_uses_model_from_options(hass, mock_oauth_session):
         subentry_type="conversation",
         data={CONF_MODEL: "gpt-5.4-mini"},
     )
-    entity = CodexConversationEntity(hass, entry, mock_oauth_session, subentry)
+    entity = CodexConversationEntity(
+        hass,
+        entry,
+        mock_oauth_session,
+        cast(ConfigSubentry, subentry),
+    )
     entity.entity_id = "conversation.test"
     entity.hass = hass
 
@@ -500,8 +514,8 @@ async def test_async_run_chat_log_appends_attachment_items(tmp_path):
             yield OutputTextDelta(delta="done", content_index=0)
 
     await async_run_chat_log(
-        chat_log=chat_log,
-        client=_Client(),
+        chat_log=cast(ChatLog, chat_log),
+        client=cast(CodexClient, _Client()),
         model="gpt-5.5",
         entity_id="conversation.codex",
         reasoning_effort="medium",
@@ -512,3 +526,30 @@ async def test_async_run_chat_log_appends_attachment_items(tmp_path):
     assert len(captured_requests) == 1
     content = captured_requests[0].input[-1]["content"]
     assert any(item["type"] == "input_image" for item in content)
+
+
+async def test_events_to_deltas_preserve_reasoning_state():
+    """Reasoning summaries and native items must survive into the chat log."""
+
+    class _Client:
+        async def stream(self, request):
+            yield ReasoningSummaryDelta(delta="Need to inspect the light state first.")
+            yield OutputItemDone(
+                item={"type": "reasoning", "id": "rs_1", "summary": []}
+            )
+            yield OutputTextDelta(delta="Done.", content_index=0)
+
+    deltas = [
+        delta
+        async for delta in _events_to_deltas(
+            cast(CodexClient, _Client()),
+            MagicMock(),
+        )
+    ]
+
+    assert deltas == [
+        {"role": "assistant"},
+        {"thinking_content": "Need to inspect the light state first."},
+        {"native": {"type": "reasoning", "id": "rs_1", "summary": []}},
+        {"content": "Done."},
+    ]

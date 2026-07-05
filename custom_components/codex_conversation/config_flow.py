@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -19,6 +19,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     TemplateSelector,
@@ -83,6 +84,9 @@ class CodexConversationConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show verification URL/code and wait for authorization."""
+        if self._flow is None:
+            return self.async_abort(reason="oauth_error")
+
         if not self._auth_task:
             self._auth_task = self._flow.wait_authorization(timeout=900)
 
@@ -110,6 +114,9 @@ class CodexConversationConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Create entry with auth data only and default subentries."""
+        if self._token is None:
+            return self.async_abort(reason="oauth_error")
+
         return self.async_create_entry(
             title="OpenAI Codex",
             data={"auth_implementation": DOMAIN, "token": self._token.as_dict()},
@@ -201,7 +208,7 @@ class _BaseCodexSubentryFlow(ConfigSubentryFlow):
             return await self.async_step_advanced()
 
         if self._supports_prompt_and_apis:
-            hass_apis = [
+            hass_apis: list[SelectOptionDict] = [
                 {"value": api.id, "label": api.name}
                 for api in llm.async_get_apis(self.hass)
             ]
@@ -215,7 +222,10 @@ class _BaseCodexSubentryFlow(ConfigSubentryFlow):
                     },
                 ): TemplateSelector(),
                 vol.Optional(CONF_LLM_HASS_API): SelectSelector(
-                    SelectSelectorConfig(options=hass_apis, multiple=True)
+                    SelectSelectorConfig(
+                        options=cast(list[SelectOptionDict] | list[str], hass_apis),
+                        multiple=True,
+                    )
                 ),
                 vol.Required(
                     CONF_RECOMMENDED,

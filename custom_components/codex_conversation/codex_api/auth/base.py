@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, cast
 
 import aiohttp
 
@@ -48,7 +49,9 @@ class AbstractAuth(ABC):
         (when available) ``openai-organization`` into every request.
         Extra headers passed via ``headers=`` are merged on top.
         """
-        extra_headers = dict(kwargs.pop("headers", {}))  # type: ignore[arg-type]
+        request_kwargs = cast(dict[str, Any], kwargs)
+        raw_headers = cast(dict[str, str] | None, request_kwargs.pop("headers", None))
+        extra_headers = dict(raw_headers or {})
 
         access_token = await self.async_get_access_token()
         account_id = await self.async_get_account_id()
@@ -65,7 +68,7 @@ class AbstractAuth(ABC):
             method,
             self._endpoint,
             headers=headers,
-            **kwargs,  # type: ignore[arg-type]
+            **request_kwargs,
         )
 
 
