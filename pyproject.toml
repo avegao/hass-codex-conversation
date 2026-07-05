@@ -1,6 +1,6 @@
 [project]
 name = "hass-codex-conversation"
-version = "1.1.0b0"
+version = "1.1.0"
 description = "Home Assistant custom integration for OpenAI Codex"
 readme = "README.md"
 requires-python = ">=3.14.2"
