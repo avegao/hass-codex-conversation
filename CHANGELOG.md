@@ -2,6 +2,9 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-07-18)
+
+
 ## v1.2.0b0 (2026-07-18)
 
 - Add GPT-5.6 models (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`)
