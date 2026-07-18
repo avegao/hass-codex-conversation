@@ -4,7 +4,7 @@ A [Home Assistant](https://www.home-assistant.io/) custom integration that bring
 
 ## The Idea
 
-OpenAI's **Codex** tooling lets you use current coding models such as `gpt-5.5`, `gpt-5.4`, and `gpt-5.4-mini` directly from the terminal and editor integrations.
+OpenAI's **Codex** tooling lets you use current coding models such as `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and previous-generation options like `gpt-5.5` directly from the terminal and editor integrations.
 Access to these models is included in a ChatGPT Plus or Pro subscription, so there is no separate OpenAI API key and no per-token billing on top of that subscription.
 
 This integration reuses the same authenticated Codex backend flow and exposes it as a native Home Assistant conversation agent.
@@ -60,14 +60,17 @@ After setup, you can change options from **Settings -> Devices & Services -> Ope
 
 | Option | Description | Default |
 | --- | --- | --- |
-| Model | Codex model used for the conversation agent | `gpt-5.5` |
+| Model | Codex model used for the conversation agent | `gpt-5.6-luna` |
 
 ### Available Models
 
 | Model | Notes |
 | --- | --- |
-| `gpt-5.5` | Recommended default for most coding and reasoning tasks |
-| `gpt-5.4` | Strong coding and tool-use model with lower cost than `gpt-5.5` |
+| `gpt-5.6-sol` | Flagship GPT-5.6 model for complex coding, research, and high-value tasks |
+| `gpt-5.6-terra` | Balanced GPT-5.6 everyday workhorse, competitive with GPT-5.5 at lower cost |
+| `gpt-5.6-luna` | Default; fast and affordable GPT-5.6 option for clear, repeatable tasks |
+| `gpt-5.5` | Previous-generation frontier model for complex coding and research workflows |
+| `gpt-5.4` | Strong coding and tool-use model |
 | `gpt-5.4-mini` | Faster and lighter option for responsive tasks |
 | `gpt-5.3-codex-spark` | Research preview model for near-instant coding iteration; ChatGPT Pro only |
 

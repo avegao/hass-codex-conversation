@@ -40,6 +40,7 @@ from custom_components.codex_conversation.const import (
     DOMAIN,
 )
 from custom_components.codex_conversation.conversation import (
+    NO_EXPOSED_ENTITIES_SUFFIX,
     _events_to_deltas,
     async_run_chat_log,
 )
@@ -528,8 +529,38 @@ async def test_async_run_chat_log_appends_attachment_items(tmp_path):
     assert any(item["type"] == "input_image" for item in content)
 
 
+async def test_async_run_chat_log_hardens_prompt_when_no_entities_exposed():
+    """General questions should not get a meta limitation response."""
+    captured_requests: list = []
+
+    class _Client:
+        async def stream(self, request):
+            captured_requests.append(request)
+            yield OutputTextDelta(delta="done", content_index=0)
+
+    chat_log = make_chat_log([UserContent(content="Tell me a joke")])
+    chat_log.content.insert(0, SystemContent(content="You are a voice assistant."))
+    chat_log.llm_api = MagicMock(
+        api_prompt=llm.NO_ENTITIES_PROMPT,
+        tools=[],
+    )
+
+    await async_run_chat_log(
+        chat_log=cast(ChatLog, chat_log),
+        client=cast(CodexClient, _Client()),
+        model="gpt-5.5",
+        entity_id="conversation.codex",
+        reasoning_effort="medium",
+        reasoning_summary="auto",
+        text_verbosity="medium",
+    )
+
+    assert len(captured_requests) == 1
+    assert NO_EXPOSED_ENTITIES_SUFFIX in captured_requests[0].instructions
+
+
 async def test_events_to_deltas_preserve_reasoning_state():
-    """Reasoning summaries and native items must survive into the chat log."""
+    """Native reasoning state should survive without surfacing summaries."""
 
     class _Client:
         async def stream(self, request):
@@ -549,7 +580,6 @@ async def test_events_to_deltas_preserve_reasoning_state():
 
     assert deltas == [
         {"role": "assistant"},
-        {"thinking_content": "Need to inspect the light state first."},
         {"native": {"type": "reasoning", "id": "rs_1", "summary": []}},
         {"content": "Done."},
     ]

@@ -67,6 +67,12 @@ from .transform import (
 _LOGGER = logging.getLogger(__name__)
 
 MAX_TOOL_ITERATIONS = 10
+NO_EXPOSED_ENTITIES_SUFFIX = (
+    "If the user asks a general knowledge question or makes casual conversation, "
+    "answer normally in plain text and do not mention missing tools, entities, or "
+    "integration limitations. Only mention exposing entities in Home Assistant when "
+    "the user is explicitly trying to control or inspect their home devices."
+)
 
 
 # ── Platform setup ─────────────────────────────────────────────────────────────
@@ -207,6 +213,15 @@ async def async_run_chat_log(
     """Execute a ChatLog against the Codex Responses API."""
     tools = [format_tool(t) for t in chat_log.llm_api.tools] if chat_log.llm_api else []
     instructions = extract_instructions(chat_log)
+    if (
+        chat_log.llm_api is not None
+        and chat_log.llm_api.api_prompt == llm.NO_ENTITIES_PROMPT
+    ):
+        instructions = (
+            f"{instructions}\n\n{NO_EXPOSED_ENTITIES_SUFFIX}"
+            if instructions
+            else NO_EXPOSED_ENTITIES_SUFFIX
+        )
     if instructions_suffix:
         instructions = (
             f"{instructions}\n\n{instructions_suffix}"
@@ -316,8 +331,4 @@ async def _events_to_deltas(
                 yield {"native": event.item}
 
         elif isinstance(event, ReasoningSummaryDelta):
-            if event.delta:
-                if not started:
-                    yield {"role": "assistant"}
-                    started = True
-                yield {"thinking_content": event.delta}
+            _LOGGER.debug("codex reasoning summary: %.80s", event.delta)

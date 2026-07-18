@@ -6,6 +6,9 @@ from homeassistant.helpers import llm
 DOMAIN = "codex_conversation"
 
 MODELS = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     "gpt-5.5",
     "gpt-5.4",
     "gpt-5.4-mini",
@@ -21,9 +24,9 @@ CONF_REASONING_SUMMARY = "reasoning_summary"
 CONF_TEXT_VERBOSITY = "text_verbosity"
 
 # Defaults
-DEFAULT_MODEL = "gpt-5.5"
+DEFAULT_MODEL = "gpt-5.6-luna"
 RECOMMENDED_REASONING_EFFORT = "medium"
-RECOMMENDED_REASONING_SUMMARY = "auto"
+RECOMMENDED_REASONING_SUMMARY = "off"
 RECOMMENDED_TEXT_VERBOSITY = "medium"
 
 RECOMMENDED_CONVERSATION_OPTIONS: dict = {
