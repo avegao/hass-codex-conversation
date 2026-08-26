@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import date, datetime
 import json
@@ -30,13 +31,17 @@ def json_default(obj: object) -> str:
     return str(obj)
 
 
-def format_tool(tool: llm.Tool) -> dict[str, Any]:
+def format_tool(
+    tool: llm.Tool,
+    *,
+    custom_serializer: Callable[[Any], Any] | None = None,
+) -> dict[str, Any]:
     """Format an HA LLM tool as a Responses API function definition."""
     return {
         "type": "function",
         "name": tool.name,
         "description": tool.description or "",
-        "parameters": convert(tool.parameters),
+        "parameters": convert(tool.parameters, custom_serializer=custom_serializer),
         "strict": False,
     }
 

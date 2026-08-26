@@ -211,11 +211,24 @@ async def async_run_chat_log(
     error_cls: type[Exception] = HomeAssistantError,
 ) -> None:
     """Execute a ChatLog against the Codex Responses API."""
-    tools = [format_tool(t) for t in chat_log.llm_api.tools] if chat_log.llm_api else []
+    llm_api = chat_log.llm_api
+    custom_serializer = (
+        getattr(llm_api, "custom_serializer", None) if llm_api is not None else None
+    )
+    tools = (
+        [
+            format_tool(tool, custom_serializer=custom_serializer)
+            for tool in llm_api.tools
+        ]
+        if llm_api is not None
+        else []
+    )
     instructions = extract_instructions(chat_log)
+    no_entities_prompt = getattr(llm, "NO_ENTITIES_PROMPT", None)
     if (
-        chat_log.llm_api is not None
-        and chat_log.llm_api.api_prompt == llm.NO_ENTITIES_PROMPT
+        llm_api is not None
+        and no_entities_prompt is not None
+        and llm_api.api_prompt == no_entities_prompt
     ):
         instructions = (
             f"{instructions}\n\n{NO_EXPOSED_ENTITIES_SUFFIX}"

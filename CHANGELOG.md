@@ -2,6 +2,11 @@
 
 <!-- version list -->
 
+## v1.2.1 (2026-08-26)
+
+- Fix compatibility with Home Assistant versions that removed `NO_ENTITIES_PROMPT`
+- Use Home Assistant's custom serializer for LLM tool schemas
+
 ## v1.2.0 (2026-07-18)
 
 - Add GPT-5.6 models (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`)

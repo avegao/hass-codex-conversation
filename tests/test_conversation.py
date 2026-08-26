@@ -18,7 +18,7 @@ from homeassistant.components.conversation import (
     UserContent,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.helpers import llm
+from homeassistant.helpers import llm, selector
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -291,6 +291,55 @@ def test_format_tool_empty_description():
     assert result["description"] == ""
 
 
+async def test_async_run_chat_log_uses_llm_custom_serializer():
+    """Tool schemas must use the serializer supplied by Home Assistant."""
+    import voluptuous as vol
+
+    captured_requests: list = []
+
+    class _Client:
+        async def stream(self, request):
+            captured_requests.append(request)
+            yield OutputTextDelta(delta="done", content_index=0)
+
+    tool = MagicMock(spec=llm.Tool)
+    tool.name = "set_brightness"
+    tool.description = "Set brightness"
+    tool.parameters = vol.Schema(
+        {vol.Required("brightness"): selector.NumberSelector({"min": 0, "max": 100})}
+    )
+    chat_log = make_chat_log(
+        [UserContent(content="Set the brightness")],
+        llm_api=SimpleNamespace(
+            api_prompt="",
+            tools=[tool],
+            custom_serializer=llm.selector_serializer,
+        ),
+    )
+
+    await async_run_chat_log(
+        chat_log=cast(ChatLog, chat_log),
+        client=cast(CodexClient, _Client()),
+        model="gpt-5.5",
+        entity_id="conversation.codex",
+        reasoning_effort="medium",
+        reasoning_summary="auto",
+        text_verbosity="medium",
+    )
+
+    assert captured_requests[0].tools[0]["parameters"] == {
+        "type": "object",
+        "properties": {
+            "brightness": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+            }
+        },
+        "required": ["brightness"],
+    }
+
+
 # ── _async_handle_message — integration ───────────────────────────────────────
 
 
@@ -529,8 +578,15 @@ async def test_async_run_chat_log_appends_attachment_items(tmp_path):
     assert any(item["type"] == "input_image" for item in content)
 
 
-async def test_async_run_chat_log_hardens_prompt_when_no_entities_exposed():
+async def test_async_run_chat_log_hardens_prompt_when_no_entities_exposed(monkeypatch):
     """General questions should not get a meta limitation response."""
+    legacy_no_entities_prompt = (
+        "Only if the user wants to control a device, tell them to expose entities "
+        "to their voice assistant in Home Assistant."
+    )
+    monkeypatch.setattr(
+        llm, "NO_ENTITIES_PROMPT", legacy_no_entities_prompt, raising=False
+    )
     captured_requests: list = []
 
     class _Client:
@@ -541,7 +597,7 @@ async def test_async_run_chat_log_hardens_prompt_when_no_entities_exposed():
     chat_log = make_chat_log([UserContent(content="Tell me a joke")])
     chat_log.content.insert(0, SystemContent(content="You are a voice assistant."))
     chat_log.llm_api = MagicMock(
-        api_prompt=llm.NO_ENTITIES_PROMPT,
+        api_prompt=legacy_no_entities_prompt,
         tools=[],
     )
 
@@ -557,6 +613,38 @@ async def test_async_run_chat_log_hardens_prompt_when_no_entities_exposed():
 
     assert len(captured_requests) == 1
     assert NO_EXPOSED_ENTITIES_SUFFIX in captured_requests[0].instructions
+
+
+async def test_async_run_chat_log_works_without_no_entities_prompt(monkeypatch):
+    """The request must work when newer HA versions remove the old constant."""
+    monkeypatch.delattr(llm, "NO_ENTITIES_PROMPT", raising=False)
+
+    captured_requests: list = []
+
+    class _Client:
+        async def stream(self, request):
+            captured_requests.append(request)
+            yield OutputTextDelta(delta="done", content_index=0)
+
+    chat_log = make_chat_log(
+        [
+            SystemContent(content="You are a voice assistant."),
+            UserContent(content="Tell me a joke"),
+        ],
+        llm_api=SimpleNamespace(api_prompt="", tools=[]),
+    )
+
+    await async_run_chat_log(
+        chat_log=cast(ChatLog, chat_log),
+        client=cast(CodexClient, _Client()),
+        model="gpt-5.5",
+        entity_id="conversation.codex",
+        reasoning_effort="medium",
+        reasoning_summary="auto",
+        text_verbosity="medium",
+    )
+
+    assert captured_requests[0].instructions == "You are a voice assistant."
 
 
 async def test_events_to_deltas_preserve_reasoning_state():
