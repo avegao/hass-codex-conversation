@@ -988,7 +988,7 @@ wheels = [
 
 [[package]]
 name = "hass-codex-conversation"
-version = "1.2.1"
+version = "1.2.2"
 source = { virtual = "." }
 
 [package.dev-dependencies]

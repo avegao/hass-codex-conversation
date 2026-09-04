@@ -2,6 +2,10 @@
 
 <!-- version list -->
 
+## v1.2.2 (2026-09-04)
+
+- Fix compatibility with Home Assistant 2026.9 schema conversion
+
 ## v1.2.1 (2026-08-26)
 
 - Fix compatibility with Home Assistant versions that removed `NO_ENTITIES_PROMPT`
