@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 import logging
 from typing import Any, cast
 
 from homeassistant.config_entries import (
+    SOURCE_REAUTH,
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
@@ -62,9 +64,13 @@ class CodexConversationConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Request a device code from Codex API."""
-        if self._async_current_entries():
+        if self.source != SOURCE_REAUTH and self._async_current_entries():
             return self.async_abort(reason="already_configured")
 
+        return await self._async_start_device_flow()
+
+    async def _async_start_device_flow(self) -> ConfigFlowResult:
+        """Start the device-code flow used for setup and reauthentication."""
         try:
             session = async_get_clientsession(self.hass)
             self._flow = CodexDeviceFlow(session)
@@ -79,6 +85,24 @@ class CodexConversationConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         return await self.async_step_activate()
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Re-authenticate an existing Codex config entry."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm that the user wants to start a new device-code flow."""
+        if user_input is None:
+            return self.async_show_form(
+                step_id="reauth_confirm",
+                data_schema=vol.Schema({}),
+            )
+
+        return await self.async_step_user()
 
     async def async_step_activate(
         self, user_input: dict[str, Any] | None = None
@@ -116,6 +140,12 @@ class CodexConversationConfigFlow(ConfigFlow, domain=DOMAIN):
         """Create entry with auth data only and default subentries."""
         if self._token is None:
             return self.async_abort(reason="oauth_error")
+
+        if self.source == SOURCE_REAUTH:
+            return self.async_update_and_abort(
+                self._get_reauth_entry(),
+                data_updates={"token": self._token.as_dict()},
+            )
 
         return self.async_create_entry(
             title="OpenAI Codex",

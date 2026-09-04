@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 import json
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation import (
@@ -180,6 +180,7 @@ class CodexConversationEntity(
         await async_run_chat_log(
             chat_log=chat_log,
             client=client,
+            config_entry=self._entry,
             model=model,
             entity_id=self.entity_id,
             reasoning_effort=self._options.get(
@@ -201,6 +202,7 @@ async def async_run_chat_log(
     *,
     chat_log: ChatLog,
     client: CodexClient,
+    config_entry: ConfigEntry | None = None,
     model: str,
     entity_id: str,
     reasoning_effort: str,
@@ -275,23 +277,46 @@ async def async_run_chat_log(
             ):
                 pass
         except (
+            config_entry_oauth2_flow.OAuth2TokenRequestError,
             CodexApiError,
             CodexContextWindowExceeded,
             CodexQuotaExceeded,
             CodexRateLimited,
             CodexServerOverloaded,
         ) as err:
-            _LOGGER.error("Codex error: %s", err)
-            if error_cls is ConverseError:
-                raise ConverseError(
-                    str(err),
-                    chat_log.conversation_id or "",
-                    intent.IntentResponse(language="en"),
-                ) from err
-            raise error_cls(str(err)) from err
+            _raise_chat_error(
+                err,
+                chat_log=chat_log,
+                config_entry=config_entry,
+                error_cls=error_cls,
+            )
 
         if not chat_log.unresponded_tool_results:
             break
+
+
+def _raise_chat_error(
+    err: Exception,
+    *,
+    chat_log: ChatLog,
+    config_entry: ConfigEntry | None,
+    error_cls: type[Exception],
+) -> NoReturn:
+    """Raise the public error and start reauthentication for auth failures."""
+    needs_reauth = isinstance(
+        err, config_entry_oauth2_flow.OAuth2TokenRequestReauthError
+    ) or (isinstance(err, CodexApiError) and err.status == 401)
+    if needs_reauth and config_entry is not None:
+        config_entry.async_start_reauth(chat_log.hass)
+
+    _LOGGER.error("Codex error: %s", err)
+    if error_cls is ConverseError:
+        raise ConverseError(
+            str(err),
+            chat_log.conversation_id or "",
+            intent.IntentResponse(language="en"),
+        ) from err
+    raise error_cls(str(err)) from err
 
 
 # ── Streaming helpers ──────────────────────────────────────────────────────────

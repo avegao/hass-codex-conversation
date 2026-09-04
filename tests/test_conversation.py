@@ -18,7 +18,8 @@ from homeassistant.components.conversation import (
     UserContent,
 )
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.helpers import llm, selector
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_entry_oauth2_flow, llm, selector
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -463,6 +464,66 @@ async def test_handle_message_api_errors_raise_converse_error(
 
         with pytest.raises(ConverseError):
             await mock_entity._async_handle_message(user_input, chat_log)
+
+
+async def test_handle_message_401_starts_reauth(mock_entity):
+    """A rejected bearer token must start Home Assistant reauthentication."""
+    chat_log = make_chat_log([UserContent(content="Hi")])
+    user_input = MagicMock()
+    user_input.as_llm_context.return_value = MagicMock()
+    user_input.extra_system_prompt = None
+
+    async def error_stream(request):
+        raise CodexApiError(401, "Unauthorized")
+        if False:
+            yield None
+
+    with (
+        patch.object(mock_entity._entry, "async_start_reauth") as start_reauth,
+        patch(
+            "custom_components.codex_conversation.conversation.CodexClient"
+        ) as MockClient,
+    ):
+        MockClient.return_value.stream = error_stream
+
+        with pytest.raises(ConverseError):
+            await mock_entity._async_handle_message(user_input, chat_log)
+
+    start_reauth.assert_called_once_with(chat_log.hass)
+
+
+async def test_refresh_reauth_failure_starts_reauth(mock_config_entry):
+    """A non-recoverable refresh failure must start Home Assistant reauth."""
+    response_error = config_entry_oauth2_flow.OAuth2TokenRequestReauthError(
+        request_info=MagicMock(),
+        history=(),
+        status=400,
+        message="invalid_grant",
+        domain=DOMAIN,
+    )
+
+    class _Client:
+        async def stream(self, request):
+            raise response_error
+            if False:
+                yield None
+
+    chat_log = make_chat_log([UserContent(content="Hi")])
+
+    with patch.object(mock_config_entry, "async_start_reauth") as start_reauth:
+        with pytest.raises(HomeAssistantError):
+            await async_run_chat_log(
+                chat_log=cast(ChatLog, chat_log),
+                client=cast(CodexClient, _Client()),
+                config_entry=mock_config_entry,
+                model="gpt-5.5",
+                entity_id="conversation.codex",
+                reasoning_effort="medium",
+                reasoning_summary="auto",
+                text_verbosity="medium",
+            )
+
+    start_reauth.assert_called_once_with(chat_log.hass)
 
 
 async def test_handle_message_tool_call_loop(mock_entity):

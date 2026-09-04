@@ -5,6 +5,10 @@
         "title": "OpenAI Codex — Accesso",
         "description": "Impossibile raggiungere il server di autorizzazione OpenAI. Riprova."
       },
+      "reauth_confirm": {
+        "title": "Autentica nuovamente OpenAI Codex",
+        "description": "La sessione OpenAI Codex è scaduta o non è più valida. Accedi di nuovo per continuare."
+      },
       "activate": {
         "title": "OpenAI Codex — Autorizza"
       }
@@ -18,7 +22,8 @@
     "abort": {
       "already_configured": "OpenAI Codex è già configurato.",
       "oauth_error": "OpenAI ha restituito un errore di autenticazione. Riprova.",
-      "token_exchange_failed": "Scambio token fallito. Riprova."
+      "token_exchange_failed": "Scambio token fallito. Riprova.",
+      "reauth_successful": "Nuova autenticazione completata con successo"
     }
   },
   "config_subentries": {

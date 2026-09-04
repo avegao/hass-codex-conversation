@@ -103,6 +103,7 @@ class CodexAITaskEntity(ai_task.AITaskEntity):
         await async_run_chat_log(
             chat_log=chat_log,
             client=client,
+            config_entry=self._entry,
             model=self._options.get(CONF_MODEL, DEFAULT_MODEL),
             entity_id=self.entity_id,
             reasoning_effort=self._options.get(

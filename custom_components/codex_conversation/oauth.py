@@ -82,10 +82,34 @@ class CodexOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementati
 
     async def _async_refresh_token(self, token: dict) -> dict:
         session = async_get_clientsession(self.hass)
-        refreshed = await refresh_token(
-            session,
-            token=OAuthToken.from_dict(token),
-            token_url=TOKEN_URL,
-            client_id=CLIENT_ID,
-        )
+        try:
+            refreshed = await refresh_token(
+                session,
+                token=OAuthToken.from_dict(token),
+                token_url=TOKEN_URL,
+                client_id=CLIENT_ID,
+            )
+        except aiohttp.ClientResponseError as err:
+            error_args = {
+                "request_info": err.request_info,
+                "history": err.history,
+                "status": err.status,
+                "message": err.message,
+                "headers": err.headers,
+            }
+            if err.status == 429 or 500 <= err.status <= 599:
+                raise config_entry_oauth2_flow.OAuth2TokenRequestTransientError(
+                    **error_args,
+                    domain=DOMAIN,
+                ) from err
+            if 400 <= err.status <= 499:
+                raise config_entry_oauth2_flow.OAuth2TokenRequestReauthError(
+                    **error_args,
+                    domain=DOMAIN,
+                ) from err
+            raise config_entry_oauth2_flow.OAuth2TokenRequestError(
+                **error_args,
+                domain=DOMAIN,
+            ) from err
+
         return refreshed.as_dict()

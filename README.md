@@ -54,6 +54,10 @@ This integration reuses the same authenticated Codex backend flow and exposes it
 4. Open the URL in your browser, log in with your ChatGPT account, and enter the code.
 5. Approve the login and complete the integration setup.
 
+### Re-authentication
+
+If the Codex session expires or is revoked, Home Assistant starts a re-authentication flow for the existing integration entry. Open the integration's re-authentication prompt and complete the device-code login again. The existing conversation and AI task configuration is preserved.
+
 ## Configuration
 
 After setup, you can change options from **Settings -> Devices & Services -> OpenAI Codex Conversation -> Configure**.

@@ -2,6 +2,10 @@
 
 <!-- version list -->
 
+## v1.2.3 (2026-09-04)
+
+- Add automatic OAuth reauthentication for expired or revoked Codex sessions
+
 ## v1.2.2 (2026-09-04)
 
 - Fix compatibility with Home Assistant 2026.9 schema conversion
