@@ -9,6 +9,25 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+_REASONING_SUMMARY_VALUES: dict[str, str | None] = {
+    "auto": "auto",
+    "short": "concise",
+    "concise": "concise",
+    "detailed": "detailed",
+    "off": None,
+}
+
+
+def _serialize_reasoning_summary(value: str) -> str | None:
+    """Translate a stored Home Assistant option to the API vocabulary."""
+    try:
+        return _REASONING_SUMMARY_VALUES[value]
+    except KeyError as err:
+        supported = ", ".join(sorted(_REASONING_SUMMARY_VALUES))
+        raise ValueError(
+            f"Unsupported reasoning summary {value!r}; expected one of: {supported}"
+        ) from err
+
 
 @dataclass
 class CodexRequest:
@@ -24,7 +43,7 @@ class CodexRequest:
 
     Reasoning parameters (``reasoning``, ``text``, ``include``) are only
     included in the serialised body for models that support them
-    (``gpt-5*`` / ``o*`` series).
+    (``gpt-5*`` / ``gpt-6*`` / ``o*`` series).
     """
 
     model: str
@@ -37,7 +56,7 @@ class CodexRequest:
     tools: list[dict[str, Any]] = field(default_factory=list)
 
     def _is_reasoning_model(self) -> bool:
-        return self.model.startswith(("gpt-5", "o"))
+        return self.model.startswith(("gpt-5", "gpt-6", "o"))
 
     def to_body(self) -> dict[str, Any]:
         """Serialise to the JSON body expected by the Codex endpoint."""
@@ -52,10 +71,13 @@ class CodexRequest:
         if self.tools:
             body["tools"] = self.tools
         if self._is_reasoning_model():
-            body["reasoning"] = {
-                "effort": self.reasoning_effort,
-                "summary": self.reasoning_summary,
-            }
+            reasoning = {"effort": self.reasoning_effort}
+            reasoning_summary = _serialize_reasoning_summary(self.reasoning_summary)
+
+            if reasoning_summary is not None:
+                reasoning["summary"] = reasoning_summary
+
+            body["reasoning"] = reasoning
             body["text"] = {"verbosity": self.text_verbosity}
             body["include"] = ["reasoning.encrypted_content"]
         return body
