@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 import json
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.components.conversation import (
@@ -14,7 +14,6 @@ from homeassistant.components.conversation import (
     ChatLog,
     ConverseError,
     SystemContent,
-    ToolResultContent,
     UserContent,
 )
 from homeassistant.config_entries import ConfigSubentry
@@ -52,7 +51,7 @@ from custom_components.codex_conversation.transform import (
     json_default,
 )
 
-from .conftest import make_chat_log
+from .conftest import make_chat_log, make_tool_result_content
 
 # ── extract_instructions ───────────────────────────────────────────────────────
 
@@ -179,11 +178,10 @@ def test_build_input_items_multiple_tool_calls():
 def test_build_input_items_tool_result():
     chat_log = make_chat_log(
         [
-            ToolResultContent(
-                agent_id="conversation.codex",
+            make_tool_result_content(
                 tool_call_id="call_1",
                 tool_name="turn_on",
-                tool_result={"success": True},
+                data={"success": True},
             ),
         ]
     )
@@ -192,23 +190,28 @@ def test_build_input_items_tool_result():
     assert len(items) == 1
     assert items[0]["type"] == "function_call_output"
     assert items[0]["call_id"] == "call_1"
-    assert json.loads(items[0]["output"]) == {"success": True}
+    expected = {"success": True}
+    if hasattr(llm, "ToolResult"):
+        expected = {"data": expected, "error": False}
+    assert json.loads(items[0]["output"]) == expected
 
 
 def test_build_input_items_tool_result_with_date_value():
-    """date objects in tool_result must be serialised as ISO strings."""
+    """date objects in tool results must be serialised as ISO strings."""
     chat_log = make_chat_log(
         [
-            ToolResultContent(
-                agent_id="conversation.codex",
+            make_tool_result_content(
                 tool_call_id="c1",
                 tool_name="get_date",
-                tool_result=cast(Any, {"today": date(2026, 3, 3)}),
+                data={"today": date(2026, 3, 3)},
             ),
         ]
     )
     items = build_input_items(chat_log)
     output = json.loads(items[0]["output"])
+    if hasattr(llm, "ToolResult"):
+        assert output["error"] is False
+        output = output["data"]
     assert output["today"] == "2026-03-03"
 
 
@@ -222,11 +225,10 @@ def test_build_input_items_full_conversation():
             AssistantContent(
                 agent_id="conversation.codex", content=None, tool_calls=[tool_call]
             ),
-            ToolResultContent(
-                agent_id="conversation.codex",
+            make_tool_result_content(
                 tool_call_id="c1",
                 tool_name="get_time",
-                tool_result={"time": "15:00"},
+                data={"time": "15:00"},
             ),
             AssistantContent(
                 agent_id="conversation.codex", content="It's 3pm.", tool_calls=None
@@ -239,6 +241,11 @@ def test_build_input_items_full_conversation():
     assert types == ["message", "function_call", "function_call_output", "message"]
     assert items[0]["role"] == "user"
     assert items[-1]["role"] == "assistant"
+    assert items[1]["call_id"] == items[2]["call_id"] == "c1"
+    expected = {"time": "15:00"}
+    if hasattr(llm, "ToolResult"):
+        expected = {"data": expected, "error": False}
+    assert json.loads(items[2]["output"]) == expected
 
 
 # ── json_default ───────────────────────────────────────────────────────────────
@@ -529,8 +536,10 @@ async def test_refresh_reauth_failure_starts_reauth(mock_config_entry):
 async def test_handle_message_tool_call_loop(mock_entity):
     """When the model makes a tool call, the loop should repeat once for the result."""
     call_counts = [0]
+    requests = []
 
     async def tool_then_text(request):
+        requests.append(request)
         call_counts[0] += 1
         if call_counts[0] == 1:
             # First call: model requests a tool
@@ -552,6 +561,21 @@ async def test_handle_message_tool_call_loop(mock_entity):
     async def drain_and_flip(entity_id, gen):
         async for _ in gen:
             pass
+        if call_counts[0] == 1:
+            chat_log.content.extend(
+                [
+                    AssistantContent(
+                        agent_id="conversation.codex",
+                        content=None,
+                        tool_calls=[
+                            llm.ToolInput(id="c1", tool_name="get_time", tool_args={})
+                        ],
+                    ),
+                    make_tool_result_content(
+                        tool_call_id="c1", tool_name="get_time", data={"time": "15:00"}
+                    ),
+                ]
+            )
         chat_log.unresponded_tool_results = next(side_effects, False)
         return
         yield
@@ -576,6 +600,16 @@ async def test_handle_message_tool_call_loop(mock_entity):
         await mock_entity._async_handle_message(user_input, chat_log)
 
     assert call_counts[0] == 2
+    assert [item["type"] for item in requests[1].input] == [
+        "message",
+        "function_call",
+        "function_call_output",
+    ]
+    assert requests[1].input[1]["call_id"] == requests[1].input[2]["call_id"] == "c1"
+    expected = {"time": "15:00"}
+    if hasattr(llm, "ToolResult"):
+        expected = {"data": expected, "error": False}
+    assert json.loads(requests[1].input[2]["output"]) == expected
 
 
 async def test_handle_message_provide_llm_data_error(mock_entity):

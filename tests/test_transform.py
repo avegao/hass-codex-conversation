@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+import json
 from pathlib import Path
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -18,6 +20,72 @@ from custom_components.codex_conversation.transform import (
     async_prepare_files_for_prompt,
     build_input_items,
 )
+
+from .conftest import make_chat_log
+
+
+@pytest.mark.parametrize("error", [False, True])
+def test_build_input_items_modern_tool_result(
+    monkeypatch: pytest.MonkeyPatch, error: bool
+) -> None:
+    """Modern results preserve their envelope without reading the deprecated alias."""
+    import custom_components.codex_conversation.transform as transform
+
+    data = {
+        "today": date(2026, 10, 13),
+        "timestamp": datetime(2026, 10, 13, 15, 0),
+        "message": "tool failed" if error else "tool succeeded",
+    }
+
+    class ModernToolResultContent:
+        tool_call_id = "call_modern"
+        result = SimpleNamespace(data=data, error=error)
+
+        @property
+        def tool_result(self):
+            raise AssertionError("The deprecated tool_result property was read")
+
+    monkeypatch.setattr(transform, "ToolResultContent", ModernToolResultContent)
+
+    items = build_input_items(make_chat_log([ModernToolResultContent()]))
+
+    assert items == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_modern",
+            "output": json.dumps(
+                {
+                    "data": {
+                        "today": "2026-10-13",
+                        "timestamp": "2026-10-13T15:00:00",
+                        "message": data["message"],
+                    },
+                    "error": error,
+                }
+            ),
+        }
+    ]
+
+
+def test_build_input_items_legacy_tool_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Older Core versions keep the original bare payload and date encoding."""
+    import custom_components.codex_conversation.transform as transform
+
+    class LegacyToolResultContent:
+        tool_call_id = "call_legacy"
+        tool_result = {"today": date(2026, 3, 3), "error": "legacy error"}
+
+    monkeypatch.setattr(transform, "ToolResultContent", LegacyToolResultContent)
+
+    items = build_input_items(make_chat_log([LegacyToolResultContent()]))
+
+    assert items == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_legacy",
+            "output": '{"today": "2026-03-03", "error": "legacy error"}',
+        }
+    ]
 
 
 class _FakeHass:

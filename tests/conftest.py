@@ -7,7 +7,9 @@ from types import ModuleType, SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
+from homeassistant.components.conversation import ToolResultContent
 from homeassistant.config_entries import ConfigSubentry
+from homeassistant.helpers import llm
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -91,6 +93,25 @@ def mock_ai_task_subentry() -> SimpleNamespace:
 
 
 # ── ChatLog helpers ────────────────────────────────────────────────────────────
+
+
+def make_tool_result_content(
+    *, tool_call_id: str, tool_name: str, data: dict, error: bool = False
+) -> ToolResultContent:
+    """Construct tool result content using the installed Core's supported API."""
+    kwargs = {
+        "agent_id": "conversation.codex",
+        "tool_call_id": tool_call_id,
+        "tool_name": tool_name,
+    }
+    tool_result_class = getattr(llm, "ToolResult", None)
+
+    if tool_result_class is not None:
+        return ToolResultContent(
+            **kwargs, result=tool_result_class(data=data, error=error)
+        )
+
+    return ToolResultContent(**kwargs, tool_result=data)
 
 
 async def drain_generator(entity_id, gen):

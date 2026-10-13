@@ -166,11 +166,18 @@ def build_input_items(chat_log: ChatLog) -> list[dict[str, Any]]:
             )
             continue
         if isinstance(content, ToolResultContent):
+            # Core 2026.10 wraps results and deprecates the tool_result alias.
+            if hasattr(content, "result"):
+                result = content.result
+                output = {"data": result.data, "error": result.error}
+            else:
+                output = content.tool_result
+
             items.append(
                 {
                     "type": "function_call_output",
                     "call_id": content.tool_call_id,
-                    "output": json.dumps(content.tool_result, default=json_default),
+                    "output": json.dumps(output, default=json_default),
                 }
             )
 
