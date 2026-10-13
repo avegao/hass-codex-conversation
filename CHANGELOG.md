@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-10-13)
+
+- Add GPT-6 models and use `gpt-6-luna` as the default model
+- Support reasoning summaries in Codex API requests
+- Support Home Assistant 2026.10 tool result envelopes, preserving legacy compatibility
+- Use the project's Python 3.14 pin in CI workflows
+
 ## v1.2.3 (2026-09-04)
 
 - Add automatic OAuth reauthentication for expired or revoked Codex sessions
